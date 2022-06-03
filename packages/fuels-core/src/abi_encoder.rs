@@ -558,7 +558,7 @@ mod tests {
         let args: Vec<Token> = vec![arg];
 
         let expected_encoded_abi = [
-            // discirminant
+            // discriminant
             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // u32
             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a,
         ];
@@ -646,8 +646,8 @@ mod tests {
                 .encode(slice::from_ref(&top_level_enum_token))
                 .unwrap();
 
-        let top_lvl_deter_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
-        let deeper_enum_deter_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1];
+        let top_lvl_discriminant_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+        let deeper_enum_discriminant_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1];
         let v2_str_enc = vec![
             b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', 0x0, 0x0, 0x0, 0x0, 0x0,
             0x0,
@@ -655,8 +655,8 @@ mod tests {
         let some_number_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2c, 0x44];
 
         let correct_encoding: Vec<u8> = [
-            top_lvl_deter_enc,
-            deeper_enum_deter_enc,
+            top_lvl_discriminant_enc,
+            deeper_enum_discriminant_enc,
             v2_str_enc,
             some_number_enc,
         ]

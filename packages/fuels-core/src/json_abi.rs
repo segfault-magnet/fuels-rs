@@ -228,7 +228,6 @@ impl ABIParser {
                 Ok(self.tokenize_struct(trimmed_value, struct_params)?)
             }
             ParamType::Enum(s) => {
-                println!("in json_abi: {:?}", s);
                 let discriminant = self.get_enum_discriminant_from_string(&value);
                 let value = self.get_enum_value_from_string(&value);
 
