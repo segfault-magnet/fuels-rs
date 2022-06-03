@@ -576,56 +576,95 @@ mod tests {
     }
 
     #[test]
-    fn enums_are_properly_sized() {
-        // let json_abi =
-        // r#"
-        // [
-        //     {
-        //         "type":"function",
-        //         "inputs": [{"name":"arg","type":"MyEnum"}],
-        //         "name":"takes_my_enum",
-        //         "outputs": []
-        //     }
-        // ]
-        // "#;
+    fn enums_are_sized_to_fit_the_biggest_variant() {
+        let enum_variants = vec![ParamType::B256, ParamType::U64];
+        let discriminant = Box::new((1, Token::U64(42), enum_variants));
 
-        let sway_fn = "takes_my_enum(MyEnum)";
+        let fun = "takes_my_enum(MyEnum)".as_bytes();
+        let encoded = ABIEncoder::new_with_fn_selector(fun)
+            .encode(slice::from_ref(&Token::Enum(discriminant)))
+            .unwrap();
 
-        // Sway enum:
-        // enum MyEnum {
-        //     V1: b256,
-        //     V2: u64,
-        // }
-        let params = vec![ParamType::B256, ParamType::U64];
+        assert_eq!(
+            hex::encode([
+                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, // discriminant
+                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a, // u32
+                // padding to reach 40 B (5 W = 1W(discriminant) + 4W(b256))
+                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            ]),
+            hex::encode(encoded)
+        );
+    }
 
-        // Create a tuple with the Enum discriminant (`0` in this case)
-        // And the value matching the discriminant type.
-        let val = Box::new((1, Token::U64(42), params));
+    #[test]
+    fn encoding_enums_with_deeply_nested_types() {
+        /*
+        enum DeeperEnum {
+            v1: bool,
+            v2: str[10]
+        }
+         */
+        let deeper_enum_variants = vec![ParamType::Bool, ParamType::String(10)];
+        let deeper_enum_token = Token::String("0123456789".to_owned());
 
-        // Create the custom enum token using the array of the tuple above
-        let arg = Token::Enum(val);
+        /*
+        struct StructA {
+            some_enum: DeeperEnum
+            some_number: u32
+        }
+         */
 
-        let args: Vec<Token> = vec![arg];
+        let struct_a_type = ParamType::Struct(vec![
+            ParamType::Enum(deeper_enum_variants.clone()),
+            ParamType::Bool,
+        ]);
 
-        let expected_encoded_abi = [
-            // discriminant
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, // u32
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a,
-            // padding to reach 40 B (5 W = 1W(discriminant) + 4W(b256))
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+        let struct_a_token = Token::Struct(vec![
+            Token::Enum(Box::new((
+                1,
+                deeper_enum_token,
+                deeper_enum_variants.clone(),
+            ))),
+            Token::U32(11332),
+        ]);
+
+        /*
+         enum TopLevelEnum {
+            v1: StructA,
+            v2: bool,
+            v3: u64
+        }
+        */
+
+        let top_level_enum_variants = vec![struct_a_type, ParamType::Bool, ParamType::U64];
+        let top_level_enum_token =
+            Token::Enum(Box::new((0, struct_a_token, top_level_enum_variants)));
+
+        let encoded =
+            ABIEncoder::new_with_fn_selector("takes_top_level_enum(TopLevelEnum)".as_bytes())
+                .encode(slice::from_ref(&top_level_enum_token))
+                .unwrap();
+
+        let top_lvl_deter_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+        let deeper_enum_deter_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1];
+        let v2_str_enc = vec![
+            b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0,
         ];
+        let some_number_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2c, 0x44];
 
-        let expected_function_selector = [0x0, 0x0, 0x0, 0x0, 0x35, 0x5c, 0xa6, 0xfa];
+        let correct_encoding: Vec<u8> = [
+            top_lvl_deter_enc,
+            deeper_enum_deter_enc,
+            v2_str_enc,
+            some_number_enc,
+        ]
+        .into_iter()
+        .flat_map(|e| e.into_iter())
+        .collect();
 
-        let mut abi_encoder = ABIEncoder::new_with_fn_selector(sway_fn.as_bytes());
-
-        let encoded = abi_encoder.encode(&args).unwrap();
-
-        println!("Encoded ABI for ({}): {:#0x?}", sway_fn, encoded);
-
-        assert_eq!(hex::encode(expected_encoded_abi), hex::encode(encoded));
-        assert_eq!(abi_encoder.function_selector, expected_function_selector);
+        assert_eq!(hex::encode(correct_encoding), hex::encode(encoded));
     }
 
     #[test]
