@@ -218,7 +218,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                     enum_name
                 );
                 args.push(quote! {
-                    (#dis, token) => {
+                    (#dis, token, _) => {
                         let variant_content = <#inner_struct_ident>::from_tokens(vec![token]).expect(#expected_str);
                     #enum_ident::#variant_name(variant_content)
                         }
@@ -239,7 +239,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                     #enum_ident::#variant_name() => (#dis, Token::Unit)
                 });
                 param_types.push(quote! { types.push(ParamType::Unit) });
-                args.push(quote! {(#dis, token) => #enum_ident::#variant_name(),});
+                args.push(quote! {(#dis, token, _) => #enum_ident::#variant_name(),});
             }
             // Elementary type
             _ => {
@@ -255,7 +255,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                 });
                 param_types.push(quote! { types.push(ParamType::#param_type_string) });
                 args.push(
-                    quote! {(#dis, token) => #enum_ident::#variant_name(<#ty>::from_tokens(vec![token])
+                    quote! {(#dis, token, _) => #enum_ident::#variant_name(<#ty>::from_tokens(vec![token])
                     .expect(&format!("Failed to run `new_from_tokens` for custom {} enum type",
                             #enum_name))),},
                 );
@@ -285,7 +285,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                     #( #enum_selector_builder, )*
                 };
 
-                let selector = (dis, tok);
+                let selector = (dis, tok, Self::param_types());
                 Token::Enum(Box::new(selector))
             }
 
@@ -303,7 +303,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                         if let enum_selector = *content {
                             return match enum_selector {
                                 #( #args )*
-                                (_, _) => panic!("Failed to match with discriminant selector {:?}", enum_selector)
+                                (_, _, _) => panic!("Failed to match with discriminant selector {:?}", enum_selector)
                             };
                         } else {
                             panic!("The EnumSelector `{:?}` didn't have a match", content);
@@ -460,7 +460,7 @@ impl MatchaTea {
             MatchaTea::LongIsland(value) => (0u8, Token::U64(value)),
             MatchaTea::MoscowMule(value) => (1u8, Token::Bool(value)),
         };
-        let selector = (dis, tok);
+        let selector = (dis, tok, Self::param_types());
         Token::Enum(Box::new(selector))
     }
     pub fn new_from_tokens(tokens: &[Token]) -> Self {
@@ -471,21 +471,21 @@ impl MatchaTea {
             Token::Enum(content) => {
                 if let enum_selector = *content {
                     return match enum_selector {
-                        (0u8, token) => MatchaTea::LongIsland(
+                        (0u8, token, _) => MatchaTea::LongIsland(
                             <u64> ::from_tokens(vec![token])
                                 .expect(
                                 &format!("Failed to run `new_from_tokens` for custom {} enum type",
                                 "MatchaTea")
                                 )
                         ),
-                        (1u8, token) => MatchaTea::MoscowMule(
+                        (1u8, token, _) => MatchaTea::MoscowMule(
                             <bool> ::from_tokens(vec![token])
                                 .expect(
                                 &format!("Failed to run `new_from_tokens` for custom {} enum type",
                                 "MatchaTea")
                                 )
                         ),
-                        (_, _) => panic!(
+                        (_, _, _) => panic!(
                             "Failed to match with discriminant selector {:?}",
                             enum_selector
                         )
@@ -570,7 +570,7 @@ impl Amsterdam {
             Amsterdam::Infrastructure(inner_struct) => (0u8, inner_struct.into_token()),
             Amsterdam::Service(value) => (1u8, Token::U32(value)),
         };
-        let selector = (dis, tok);
+        let selector = (dis, tok, Self::param_types());
         Token::Enum(Box::new(selector))
     }
     pub fn new_from_tokens(tokens: &[Token]) -> Self {
@@ -581,18 +581,18 @@ impl Amsterdam {
             Token::Enum(content) => {
                 if let enum_selector = *content {
                     return match enum_selector {
-                        (0u8, token) => {
+                        (0u8, token, _) => {
                             let variant_content = <Building> ::from_tokens(vec![token]).expect(
                                 "Failed to run `new_from_tokens` for custom Amsterdam enum type"
                             );
                             Amsterdam::Infrastructure(variant_content)
                         }
-                        (1u8, token) => 
+                        (1u8, token, _) =>
                             Amsterdam::Service(<u32> ::from_tokens(vec![token]).expect(&format!(
                                 "Failed to run `new_from_tokens` for custom {} enum type",
                                 "Amsterdam"
                             ))),
-                        (_, _) => panic!(
+                        (_, _, _) => panic!(
                             "Failed to match with discriminant selector {:?}",
                             enum_selector
                         )

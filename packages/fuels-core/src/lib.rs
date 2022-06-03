@@ -22,7 +22,7 @@ pub mod tx {
 pub type ByteArray = [u8; 8];
 pub type Selector = ByteArray;
 pub type Bits256 = [u8; 32];
-pub type EnumSelector = (u8, Token);
+pub type EnumSelector = (u8, Token, Vec<ParamType>);
 
 #[derive(Debug, Clone, EnumString, PartialEq, Eq)]
 #[strum(ascii_case_insensitive)]

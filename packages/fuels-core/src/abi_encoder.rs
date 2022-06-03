@@ -85,6 +85,7 @@ impl Default for ABIEncoder {
 
 #[cfg(test)]
 mod tests {
+    use crate::ParamType;
     use super::*;
 
     #[test]
@@ -495,10 +496,11 @@ mod tests {
         //     x: u32,
         //     y: bool,
         // }
+        let params = vec![ParamType::Enum(vec![ParamType::U32, ParamType::Bool])];
 
         // Create a tuple with the Enum discriminant (`0` in this case)
         // And the value matching the discriminant type.
-        let val = Box::new((0, Token::U32(42)));
+        let val = Box::new((0, Token::U32(42), params));
 
         // Create the custom enum token using the array of the tuple above
         let arg = Token::Enum(val);

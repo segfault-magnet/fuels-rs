@@ -184,7 +184,7 @@ impl ABIDecoder {
                 )?;
 
                 let result = DecodeResult {
-                    token: Token::Enum(Box::new((discriminant as u8, res.token))),
+                    token: Token::Enum(Box::new((discriminant as u8, res.token, variations.clone()))),
                     new_offset: res.new_offset,
                 };
 
@@ -405,7 +405,8 @@ mod tests {
         //     y: bool,
         // }
 
-        let types = vec![ParamType::Enum(vec![ParamType::U32, ParamType::Bool])];
+        let inner_enum_types = vec![ParamType::U32, ParamType::Bool];
+        let types = vec![ParamType::Enum(inner_enum_types.clone())];
 
         // "0" discriminant and 42 enum value
         let data = [
@@ -415,7 +416,7 @@ mod tests {
 
         let decoded = decoder.decode(&types, &data).unwrap();
 
-        let expected = vec![Token::Enum(Box::new((0, Token::U32(42))))];
+        let expected = vec![Token::Enum(Box::new((0, Token::U32(42), inner_enum_types)))];
         assert_eq!(decoded, expected);
 
         println!(
