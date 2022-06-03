@@ -1,6 +1,8 @@
+use std::slice;
 use crate::errors::CodecError;
-use crate::{pad_string, pad_u16, pad_u32, pad_u8, ByteArray, Token};
+use crate::{pad_string, pad_u16, pad_u32, pad_u8, ByteArray, Token, ParamType};
 use sha2::{Digest, Sha256};
+use crate::constants::WORD_SIZE;
 
 pub struct ABIEncoder {
     pub function_selector: ByteArray,
@@ -19,6 +21,46 @@ impl ABIEncoder {
         Self {
             function_selector: Self::encode_function_selector(signature),
             encoded_args: Vec::new(),
+        }
+    }
+
+    fn count_words(bytes: usize) -> usize {
+        let q = bytes / WORD_SIZE;
+        let r = bytes % WORD_SIZE;
+        match r == 0 {
+            true => q,
+            false => q + 1
+        }
+    }
+
+
+    fn calc_size_in_words(param: &ParamType) -> usize {
+        match param {
+            ParamType::Unit => 0,
+            ParamType::U8 | ParamType::U16 | ParamType::U32 | ParamType::U64 | ParamType::Bool | ParamType::Byte => 1,
+            ParamType::B256 => 4,
+            ParamType::Array(param, count) => {
+                Self::calc_size_in_words(param) * count
+            }
+            ParamType::String(len) => {
+                Self::count_words(*len)
+            }
+            ParamType::Struct(params) => {
+                params.iter().map(Self::calc_size_in_words).sum()
+            }
+            ParamType::Enum(variants) => {
+                const DISCRIMINANT_WORD_SIZE: usize = 1;
+
+                let biggest_variant = variants.iter()
+                    .map(Self::calc_size_in_words)
+                    .max()
+                    .unwrap_or(0);
+
+                biggest_variant + DISCRIMINANT_WORD_SIZE
+            }
+            ParamType::Tuple(params) => {
+                params.iter().map(Self::calc_size_in_words).sum()
+            }
         }
     }
 
@@ -46,14 +88,21 @@ impl ABIEncoder {
                 Token::String(arg_string) => self.encoded_args.extend(pad_string(arg_string)),
                 Token::Struct(arg_struct) => {
                     for property in arg_struct.iter() {
-                        self.encode(&[property.to_owned()])?;
+                        self.encode(slice::from_ref(property))?;
                     }
                 }
                 Token::Enum(arg_enum) => {
+                    let pre_encode_size = self.encoded_args.len();
+
                     // Encode the discriminant of the enum
                     self.encoded_args.extend(pad_u8(&arg_enum.0));
                     // Encode the Token within the enum
-                    self.encode(&[arg_enum.1.to_owned()])?;
+                    self.encode(slice::from_ref(&arg_enum.1))?;
+
+                    let param_type = ParamType::Enum(arg_enum.2.clone());
+                    let size_of_encoded_enum = Self::calc_size_in_words(&param_type) * WORD_SIZE;
+
+                    self.zeropad_until_size(pre_encode_size + size_of_encoded_enum);
                 }
                 Token::Tuple(arg_tuple) => {
                     self.encode(arg_tuple)?;
@@ -62,6 +111,10 @@ impl ABIEncoder {
             };
         }
         Ok(self.encoded_args.clone())
+    }
+
+    fn zeropad_until_size(&mut self, final_size: usize) {
+        self.encoded_args.resize(final_size, 0);
     }
 
     pub fn encode_function_selector(signature: &[u8]) -> ByteArray {
@@ -496,7 +549,7 @@ mod tests {
         //     x: u32,
         //     y: bool,
         // }
-        let params = vec![ParamType::Enum(vec![ParamType::U32, ParamType::Bool])];
+        let params = vec![ParamType::U32, ParamType::Bool];
 
         // Create a tuple with the Enum discriminant (`0` in this case)
         // And the value matching the discriminant type.
@@ -508,7 +561,66 @@ mod tests {
         let args: Vec<Token> = vec![arg];
 
         let expected_encoded_abi = [
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a,
+            // discirminant
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            // u32
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a,
+        ];
+
+        let expected_function_selector = [0x0, 0x0, 0x0, 0x0, 0x35, 0x5c, 0xa6, 0xfa];
+
+        let mut abi_encoder = ABIEncoder::new_with_fn_selector(sway_fn.as_bytes());
+
+        let encoded = abi_encoder.encode(&args).unwrap();
+
+        println!("Encoded ABI for ({}): {:#0x?}", sway_fn, encoded);
+
+        assert_eq!(hex::encode(expected_encoded_abi), hex::encode(encoded));
+        assert_eq!(abi_encoder.function_selector, expected_function_selector);
+    }
+
+    #[test]
+    fn enums_are_properly_sized() {
+        // let json_abi =
+        // r#"
+        // [
+        //     {
+        //         "type":"function",
+        //         "inputs": [{"name":"arg","type":"MyEnum"}],
+        //         "name":"takes_my_enum",
+        //         "outputs": []
+        //     }
+        // ]
+        // "#;
+
+        let sway_fn = "takes_my_enum(MyEnum)";
+
+        // Sway enum:
+        // enum MyEnum {
+        //     V1: b256,
+        //     V2: u64,
+        // }
+        let params = vec![ParamType::B256, ParamType::U64];
+
+        // Create a tuple with the Enum discriminant (`0` in this case)
+        // And the value matching the discriminant type.
+        let val = Box::new((1, Token::U64(42), params));
+
+        // Create the custom enum token using the array of the tuple above
+        let arg = Token::Enum(val);
+
+        let args: Vec<Token> = vec![arg];
+
+        let expected_encoded_abi = [
+            // discriminant
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
+            // u32
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a,
+
+            // padding to reach 40 B (5 W = 1W(discriminant) + 4W(b256))
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
         ];
 
         let expected_function_selector = [0x0, 0x0, 0x0, 0x0, 0x35, 0x5c, 0xa6, 0xfa];
