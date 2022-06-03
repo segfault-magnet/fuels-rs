@@ -234,7 +234,11 @@ impl ABIParser {
 
                 let token = self.tokenize(&s[discriminant], value)?;
 
-                Ok(Token::Enum(Box::new((discriminant as u8, token, s.clone()))))
+                Ok(Token::Enum(Box::new((
+                    discriminant as u8,
+                    token,
+                    s.clone(),
+                ))))
             }
             ParamType::Tuple(_tuple_params) => {
                 todo!("Tuple tokenization for the ABI CLI tool not implemented yet")

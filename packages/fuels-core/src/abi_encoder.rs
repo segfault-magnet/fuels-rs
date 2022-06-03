@@ -1,8 +1,8 @@
-use std::slice;
-use crate::errors::CodecError;
-use crate::{pad_string, pad_u16, pad_u32, pad_u8, ByteArray, Token, ParamType};
-use sha2::{Digest, Sha256};
 use crate::constants::WORD_SIZE;
+use crate::errors::CodecError;
+use crate::{pad_string, pad_u16, pad_u32, pad_u8, ByteArray, ParamType, Token};
+use sha2::{Digest, Sha256};
+use std::slice;
 
 pub struct ABIEncoder {
     pub function_selector: ByteArray,
@@ -29,38 +29,35 @@ impl ABIEncoder {
         let r = bytes % WORD_SIZE;
         match r == 0 {
             true => q,
-            false => q + 1
+            false => q + 1,
         }
     }
-
 
     fn calc_size_in_words(param: &ParamType) -> usize {
         match param {
             ParamType::Unit => 0,
-            ParamType::U8 | ParamType::U16 | ParamType::U32 | ParamType::U64 | ParamType::Bool | ParamType::Byte => 1,
+            ParamType::U8
+            | ParamType::U16
+            | ParamType::U32
+            | ParamType::U64
+            | ParamType::Bool
+            | ParamType::Byte => 1,
             ParamType::B256 => 4,
-            ParamType::Array(param, count) => {
-                Self::calc_size_in_words(param) * count
-            }
-            ParamType::String(len) => {
-                Self::count_words(*len)
-            }
-            ParamType::Struct(params) => {
-                params.iter().map(Self::calc_size_in_words).sum()
-            }
+            ParamType::Array(param, count) => Self::calc_size_in_words(param) * count,
+            ParamType::String(len) => Self::count_words(*len),
+            ParamType::Struct(params) => params.iter().map(Self::calc_size_in_words).sum(),
             ParamType::Enum(variants) => {
                 const DISCRIMINANT_WORD_SIZE: usize = 1;
 
-                let biggest_variant = variants.iter()
+                let biggest_variant = variants
+                    .iter()
                     .map(Self::calc_size_in_words)
                     .max()
                     .unwrap_or(0);
 
                 biggest_variant + DISCRIMINANT_WORD_SIZE
             }
-            ParamType::Tuple(params) => {
-                params.iter().map(Self::calc_size_in_words).sum()
-            }
+            ParamType::Tuple(params) => params.iter().map(Self::calc_size_in_words).sum(),
         }
     }
 
@@ -138,8 +135,8 @@ impl Default for ABIEncoder {
 
 #[cfg(test)]
 mod tests {
-    use crate::ParamType;
     use super::*;
+    use crate::ParamType;
 
     #[test]
     fn encode_function_signature() {
@@ -562,8 +559,7 @@ mod tests {
 
         let expected_encoded_abi = [
             // discirminant
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-            // u32
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // u32
             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a,
         ];
 
@@ -613,14 +609,11 @@ mod tests {
 
         let expected_encoded_abi = [
             // discriminant
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
-            // u32
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, // u32
             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a,
-
             // padding to reach 40 B (5 W = 1W(discriminant) + 4W(b256))
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
         ];
 
         let expected_function_selector = [0x0, 0x0, 0x0, 0x0, 0x35, 0x5c, 0xa6, 0xfa];

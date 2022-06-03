@@ -71,8 +71,6 @@ impl ParamType {
             _ => ReturnLocation::ReturnData,
         }
     }
-
-
 }
 
 impl fmt::Display for ParamType {
@@ -156,8 +154,8 @@ pub struct InvalidOutputType(pub String);
 pub trait Tokenizable {
     /// Converts a `Token` into expected type.
     fn from_token(token: Token) -> Result<Self, InvalidOutputType>
-        where
-            Self: Sized;
+    where
+        Self: Sized;
     /// Converts a specified type back into token.
     fn into_token(self) -> Token;
 }
@@ -354,14 +352,14 @@ impl_tuples!(16, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M
 pub trait Detokenize {
     /// Creates a new instance from parsed ABI tokens.
     fn from_tokens(tokens: Vec<Token>) -> Result<Self, InvalidOutputType>
-        where
-            Self: Sized;
+    where
+        Self: Sized;
 }
 
 impl Detokenize for () {
     fn from_tokens(_: Vec<Token>) -> std::result::Result<Self, InvalidOutputType>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         Ok(())
     }
@@ -381,8 +379,8 @@ impl<T: Tokenizable> Detokenize for T {
 
 impl Detokenize for fuel_tx::ContractId {
     fn from_tokens(t: Vec<Token>) -> std::result::Result<Self, InvalidOutputType>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         if let Token::Struct(tokens) = &t[0] {
             if let Token::B256(id) = &tokens[0] {
@@ -404,8 +402,8 @@ impl Detokenize for fuel_tx::ContractId {
 
 impl Detokenize for fuel_tx::Address {
     fn from_tokens(t: Vec<Token>) -> std::result::Result<Self, InvalidOutputType>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         if let Token::Struct(tokens) = &t[0] {
             if let Token::B256(id) = &tokens[0] {

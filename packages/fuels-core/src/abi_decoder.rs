@@ -184,7 +184,11 @@ impl ABIDecoder {
                 )?;
 
                 let result = DecodeResult {
-                    token: Token::Enum(Box::new((discriminant as u8, res.token, variations.clone()))),
+                    token: Token::Enum(Box::new((
+                        discriminant as u8,
+                        res.token,
+                        variations.clone(),
+                    ))),
                     new_offset: res.new_offset,
                 };
 
