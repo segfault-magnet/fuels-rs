@@ -548,16 +548,15 @@ mod tests {
             .encode(slice::from_ref(&Token::Enum(discriminant)))
             .unwrap();
 
-        assert_eq!(
-            hex::encode([
-                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, // discriminant
-                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a, // u32
-                // padding to reach 40 B (5 W = 1W(discriminant) + 4W(b256))
-                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-                0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-            ]),
-            hex::encode(encoded)
-        );
+        let enum_discriminant_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1];
+        let u32_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a];
+        let enum_padding = vec![0x0; 24];
+        let data: Vec<u8> = [enum_discriminant_enc, u32_enc, enum_padding]
+            .into_iter()
+            .flatten()
+            .collect();
+
+        assert_eq!(hex::encode(data), hex::encode(encoded));
     }
 
     #[test]
@@ -609,7 +608,7 @@ mod tests {
                 .encode(slice::from_ref(&top_level_enum_token))
                 .unwrap();
 
-        let top_lvl_discriminant_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+        let top_lvl_discriminant_enc = vec![0x0; 8];
         let deeper_enum_discriminant_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1];
         let v2_str_enc = vec![
             b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', 0x0, 0x0, 0x0, 0x0, 0x0,
@@ -624,7 +623,7 @@ mod tests {
             some_number_enc,
         ]
         .into_iter()
-        .flat_map(|e| e.into_iter())
+        .flatten()
         .collect();
 
         assert_eq!(hex::encode(correct_encoding), hex::encode(encoded));
