@@ -1,3 +1,4 @@
+use crate::encoding_utils::max_by_encoding_width;
 use crate::errors::CodecError;
 use crate::{constants::WORD_SIZE, Bits256, ByteArray, ParamType, Token};
 use core::convert::TryInto;
@@ -176,22 +177,22 @@ impl ABIDecoder {
 
                 let discriminant = u32::from_be_bytes(discriminant[4..8].try_into().unwrap());
 
-                // Offset + 1 WORD because of the discriminant that we just peeked
+                const DISCRIMINANT_SIZE: usize = WORD_SIZE;
+
                 let res = self.decode_param(
                     variations.get(discriminant as usize).unwrap(),
                     data,
-                    offset + WORD_SIZE,
+                    offset + DISCRIMINANT_SIZE,
                 )?;
 
-                let token = Token::Enum(Box::new((
-                    discriminant as u8,
-                    res.token,
-                    variations.clone(),
-                )));
+                let params = variations;
+                let encoding_width = max_by_encoding_width(params).unwrap();
+                let token = Token::Enum(Box::new((discriminant as u8, res.token, encoding_width)));
 
+                let enum_byte_size = encoding_width * WORD_SIZE + DISCRIMINANT_SIZE;
                 Ok(DecodeResult {
                     token,
-                    new_offset: offset + param.calc_size_in_words() * WORD_SIZE,
+                    new_offset: offset + enum_byte_size,
                 })
             }
             ParamType::Tuple(types) => {
@@ -409,8 +410,8 @@ mod tests {
         //     y: bool,
         // }
 
-        let inner_enum_types = vec![ParamType::U32, ParamType::Bool];
-        let types = vec![ParamType::Enum(inner_enum_types.clone())];
+        let max_words_for_variant = 1;
+        let types = vec![ParamType::Enum(vec![ParamType::U32, ParamType::Bool])];
 
         // "0" discriminant and 42 enum value
         let data = [
@@ -420,8 +421,12 @@ mod tests {
 
         let decoded = decoder.decode(&types, &data).unwrap();
 
-        let expected = vec![Token::Enum(Box::new((0, Token::U32(42), inner_enum_types)))];
-        assert_eq!(decoded, expected);
+        let expected = vec![Token::Enum(Box::new((
+            0,
+            Token::U32(42),
+            max_words_for_variant,
+        )))];
+        assert_eq!(expected, decoded);
 
         println!(
             "Decoded ABI for ({:#0x?}) with types ({:?}): {:?}",
@@ -441,10 +446,10 @@ mod tests {
         //     y: u32,
         // }
 
-        let inner_enum_types = vec![ParamType::B256, ParamType::U32];
+        let max_words_for_inner_enum_variant = 4;
 
         let types = vec![ParamType::Struct(vec![
-            ParamType::Enum(inner_enum_types.clone()),
+            ParamType::Enum(vec![ParamType::B256, ParamType::U32]),
             ParamType::U32,
         ])];
 
@@ -465,7 +470,11 @@ mod tests {
         let decoded = ABIDecoder::new().decode(&types, &data).unwrap();
 
         let expected = vec![Token::Struct(vec![
-            Token::Enum(Box::new((1, Token::U32(12345), inner_enum_types))),
+            Token::Enum(Box::new((
+                1,
+                Token::U32(12345),
+                max_words_for_inner_enum_variant,
+            ))),
             Token::U32(54321),
         ])];
         assert_eq!(decoded, expected);

@@ -1,6 +1,6 @@
 use crate::constants::WORD_SIZE;
 use crate::errors::CodecError;
-use crate::{pad_string, pad_u16, pad_u32, pad_u8, ByteArray, ParamType, Token};
+use crate::{pad_string, pad_u16, pad_u32, pad_u8, ByteArray, Token};
 use sha2::{Digest, Sha256};
 use std::slice;
 
@@ -52,15 +52,16 @@ impl ABIEncoder {
                     }
                 }
                 Token::Enum(arg_enum) => {
+                    let (discriminant, token, max_words_for_variant) = arg_enum.as_ref();
+
                     let pre_encode_size = self.encoded_args.len();
 
                     // Encode the discriminant of the enum
-                    self.encoded_args.extend(pad_u8(&arg_enum.0));
+                    self.encoded_args.extend(pad_u8(discriminant));
                     // Encode the Token within the enum
-                    self.encode(slice::from_ref(&arg_enum.1))?;
+                    self.encode(slice::from_ref(token))?;
 
-                    let size_of_encoded_enum =
-                        ParamType::Enum(arg_enum.2.clone()).calc_size_in_words() * WORD_SIZE;
+                    let size_of_encoded_enum = (max_words_for_variant + 1) * WORD_SIZE;
 
                     self.zeropad_until_size(pre_encode_size + size_of_encoded_enum);
                 }
@@ -509,11 +510,11 @@ mod tests {
         //     x: u32,
         //     y: bool,
         // }
-        let params = vec![ParamType::U32, ParamType::Bool];
+        let max_words_for_variant = 1;
 
         // Create a tuple with the Enum discriminant (`0` in this case)
         // And the value matching the discriminant type.
-        let val = Box::new((0, Token::U32(42), params));
+        let val = Box::new((0, Token::U32(42), max_words_for_variant));
 
         // Create the custom enum token using the array of the tuple above
         let arg = Token::Enum(val);
@@ -538,10 +539,10 @@ mod tests {
 
     #[test]
     fn enums_are_sized_to_fit_the_biggest_variant() {
-        let enum_variants = vec![ParamType::B256, ParamType::U64];
-        let discriminant = Box::new((1, Token::U64(42), enum_variants));
-
+        let max_words_for_variant = 4;
+        let discriminant = Box::new((1, Token::U64(42), max_words_for_variant));
         let fun = "takes_my_enum(MyEnum)".as_bytes();
+
         let encoded = ABIEncoder::new_with_fn_selector(fun)
             .encode(slice::from_ref(&Token::Enum(discriminant)))
             .unwrap();
@@ -549,12 +550,12 @@ mod tests {
         let enum_discriminant_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1];
         let u32_enc = vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2a];
         let enum_padding = vec![0x0; 24];
-        let data: Vec<u8> = [enum_discriminant_enc, u32_enc, enum_padding]
+        let expected: Vec<u8> = [enum_discriminant_enc, u32_enc, enum_padding]
             .into_iter()
             .flatten()
             .collect();
 
-        assert_eq!(hex::encode(data), hex::encode(encoded));
+        assert_eq!(hex::encode(expected), hex::encode(encoded));
     }
 
     #[test]
@@ -580,12 +581,10 @@ mod tests {
             ParamType::Bool,
         ]);
 
+        let params = &deeper_enum_variants;
+        let encoding_width = 2;
         let struct_a_token = Token::Struct(vec![
-            Token::Enum(Box::new((
-                1,
-                deeper_enum_token,
-                deeper_enum_variants.clone(),
-            ))),
+            Token::Enum(Box::new((1, deeper_enum_token, encoding_width))),
             Token::U32(11332),
         ]);
 
@@ -598,8 +597,9 @@ mod tests {
         */
 
         let top_level_enum_variants = vec![struct_a_type, ParamType::Bool, ParamType::U64];
-        let top_level_enum_token =
-            Token::Enum(Box::new((0, struct_a_token, top_level_enum_variants)));
+        let params = &top_level_enum_variants;
+        let encoding_width = 4;
+        let top_level_enum_token = Token::Enum(Box::new((0, struct_a_token, encoding_width)));
 
         let encoded =
             ABIEncoder::new_with_fn_selector("takes_top_level_enum(TopLevelEnum)".as_bytes())

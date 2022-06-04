@@ -1,3 +1,4 @@
+use crate::encoding_utils::max_by_encoding_width;
 use crate::Token;
 use crate::{abi_decoder::ABIDecoder, abi_encoder::ABIEncoder, errors::Error, ParamType};
 use fuels_types::{JsonABI, Property};
@@ -229,7 +230,7 @@ impl ABIParser {
                 Ok(Token::Enum(Box::new((
                     discriminant as u8,
                     token,
-                    s.clone(),
+                    max_by_encoding_width(s).unwrap(),
                 ))))
             }
             ParamType::Tuple(_tuple_params) => {

@@ -7,6 +7,7 @@ pub mod abi_decoder;
 pub mod abi_encoder;
 pub mod code_gen;
 pub mod constants;
+mod encoding_utils;
 pub mod errors;
 pub mod json_abi;
 pub mod parameters;
@@ -23,7 +24,8 @@ pub mod tx {
 pub type ByteArray = [u8; 8];
 pub type Selector = ByteArray;
 pub type Bits256 = [u8; 32];
-pub type EnumSelector = (u8, Token, Vec<ParamType>);
+
+pub type EnumSelector = (u8, Token, usize);
 
 #[derive(Debug, Clone, EnumString, PartialEq, Eq)]
 #[strum(ascii_case_insensitive)]
@@ -70,43 +72,6 @@ impl ParamType {
             }
 
             _ => ReturnLocation::ReturnData,
-        }
-    }
-
-    fn count_words(bytes: usize) -> usize {
-        let q = bytes / WORD_SIZE;
-        let r = bytes % WORD_SIZE;
-        match r == 0 {
-            true => q,
-            false => q + 1,
-        }
-    }
-
-    fn calc_size_in_words(&self) -> usize {
-        match self {
-            ParamType::Unit => 0,
-            ParamType::U8
-            | ParamType::U16
-            | ParamType::U32
-            | ParamType::U64
-            | ParamType::Bool
-            | ParamType::Byte => 1,
-            ParamType::B256 => 4,
-            ParamType::Array(param, count) => Self::calc_size_in_words(param) * count,
-            ParamType::String(len) => Self::count_words(*len),
-            ParamType::Struct(params) => params.iter().map(Self::calc_size_in_words).sum(),
-            ParamType::Enum(variants) => {
-                const DISCRIMINANT_WORD_SIZE: usize = 1;
-
-                let biggest_variant = variants
-                    .iter()
-                    .map(Self::calc_size_in_words)
-                    .max()
-                    .unwrap_or(0);
-
-                biggest_variant + DISCRIMINANT_WORD_SIZE
-            }
-            ParamType::Tuple(params) => params.iter().map(Self::calc_size_in_words).sum(),
         }
     }
 }

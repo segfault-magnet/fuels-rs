@@ -1,3 +1,4 @@
+use crate::encoding_utils::max_by_encoding_width;
 use crate::errors::Error;
 use crate::json_abi::parse_param;
 use crate::types::expand_type;
@@ -183,7 +184,8 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
 
     let enum_name = name.to_class_case();
     let enum_ident = ident(&enum_name);
-    let mut param_types = Vec::new();
+    let mut param_tokens = Vec::new();
+    let mut params = Vec::new();
 
     for (discriminant, component) in components.iter().enumerate() {
         let variant_name = ident(&component.name.to_class_case());
@@ -196,7 +198,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                 // TODO: Support nested enums
                 unimplemented!()
             }
-            ParamType::Struct(_params) => {
+            ParamType::Struct(_) => {
                 let inner_struct_name = &extract_custom_type_name_from_abi_property(
                     component,
                     Some(CustomType::Struct),
@@ -226,7 +228,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                 });
 
                 // This is used to get the correct nested types of the enum
-                param_types.push(
+                param_tokens.push(
                     quote! { types.push(ParamType::Struct(#inner_struct_ident::param_types()))
                     },
                 );
@@ -239,7 +241,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                 enum_selector_builder.push(quote! {
                     #enum_ident::#variant_name() => (#dis, Token::Unit)
                 });
-                param_types.push(quote! { types.push(ParamType::Unit) });
+                param_tokens.push(quote! { types.push(ParamType::Unit) });
                 args.push(quote! {(#dis, token, _) => #enum_ident::#variant_name(),});
             }
             // Elementary type
@@ -254,7 +256,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                 enum_selector_builder.push(quote! {
                     #enum_ident::#variant_name(value) => (#dis, Token::#param_type_string(value))
                 });
-                param_types.push(quote! { types.push(ParamType::#param_type_string) });
+                param_tokens.push(quote! { types.push(ParamType::#param_type_string) });
                 args.push(
                     quote! {(#dis, token, _) => #enum_ident::#variant_name(<#ty>::from_tokens(vec![token])
                     .expect(&format!("Failed to run `new_from_tokens` for custom {} enum type",
@@ -262,7 +264,11 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                 );
             }
         }
+        params.push(param_type);
     }
+
+    let params_argument = &params;
+    let encoding_width = max_by_encoding_width(params_argument).unwrap();
 
     // Actual creation of the enum, using the inner TokenStreams from above
     // to produce the TokenStream that represents the whole enum + methods
@@ -276,7 +282,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
         impl #enum_ident {
             pub fn param_types() -> Vec<ParamType> {
                 let mut types = Vec::new();
-                #( #param_types; )*
+                #( #param_tokens; )*
                 types
             }
 
@@ -312,7 +318,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
                     #( #enum_selector_builder, )*
                 };
 
-                let selector = (dis, tok, Self::param_types());
+                let selector = (dis, tok, #encoding_width);
                 Token::Enum(Box::new(selector))
             }
 
