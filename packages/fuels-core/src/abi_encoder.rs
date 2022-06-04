@@ -24,43 +24,6 @@ impl ABIEncoder {
         }
     }
 
-    fn count_words(bytes: usize) -> usize {
-        let q = bytes / WORD_SIZE;
-        let r = bytes % WORD_SIZE;
-        match r == 0 {
-            true => q,
-            false => q + 1,
-        }
-    }
-
-    fn calc_size_in_words(param: &ParamType) -> usize {
-        match param {
-            ParamType::Unit => 0,
-            ParamType::U8
-            | ParamType::U16
-            | ParamType::U32
-            | ParamType::U64
-            | ParamType::Bool
-            | ParamType::Byte => 1,
-            ParamType::B256 => 4,
-            ParamType::Array(param, count) => Self::calc_size_in_words(param) * count,
-            ParamType::String(len) => Self::count_words(*len),
-            ParamType::Struct(params) => params.iter().map(Self::calc_size_in_words).sum(),
-            ParamType::Enum(variants) => {
-                const DISCRIMINANT_WORD_SIZE: usize = 1;
-
-                let biggest_variant = variants
-                    .iter()
-                    .map(Self::calc_size_in_words)
-                    .max()
-                    .unwrap_or(0);
-
-                biggest_variant + DISCRIMINANT_WORD_SIZE
-            }
-            ParamType::Tuple(params) => params.iter().map(Self::calc_size_in_words).sum(),
-        }
-    }
-
     /// Encode takes an array of `Token`s, encodes these tokens, and returns the
     /// raw bytes (as a Vec<u8>) that represent the encoded tokens.
     /// The encoding follows the ABI specs defined
@@ -96,8 +59,8 @@ impl ABIEncoder {
                     // Encode the Token within the enum
                     self.encode(slice::from_ref(&arg_enum.1))?;
 
-                    let param_type = ParamType::Enum(arg_enum.2.clone());
-                    let size_of_encoded_enum = Self::calc_size_in_words(&param_type) * WORD_SIZE;
+                    let size_of_encoded_enum =
+                        ParamType::Enum(arg_enum.2.clone()).calc_size_in_words() * WORD_SIZE;
 
                     self.zeropad_until_size(pre_encode_size + size_of_encoded_enum);
                 }

@@ -176,23 +176,23 @@ impl ABIDecoder {
 
                 let discriminant = u32::from_be_bytes(discriminant[4..8].try_into().unwrap());
 
-                // Offset + 8 because of the discriminant that we just peeked
+                // Offset + 1 WORD because of the discriminant that we just peeked
                 let res = self.decode_param(
                     variations.get(discriminant as usize).unwrap(),
                     data,
-                    offset + 8,
+                    offset + WORD_SIZE,
                 )?;
 
-                let result = DecodeResult {
-                    token: Token::Enum(Box::new((
-                        discriminant as u8,
-                        res.token,
-                        variations.clone(),
-                    ))),
-                    new_offset: res.new_offset,
-                };
+                let token = Token::Enum(Box::new((
+                    discriminant as u8,
+                    res.token,
+                    variations.clone(),
+                )));
 
-                Ok(result)
+                Ok(DecodeResult {
+                    token,
+                    new_offset: offset + param.calc_size_in_words() * WORD_SIZE,
+                })
             }
             ParamType::Tuple(types) => {
                 let mut tokens = vec![];
@@ -427,6 +427,40 @@ mod tests {
             "Decoded ABI for ({:#0x?}) with types ({:?}): {:?}",
             data, types, decoded
         );
+    }
+
+    #[test]
+    fn enum_padding_is_skipped() {
+        // struct  MyStruct {
+        // par1: MyEnum,
+        // par2: u32
+        // }
+
+        // enum MyEnum {
+        //     x: b256,
+        //     y: u32,
+        // }
+
+        let inner_enum_types = vec![ParamType::B256, ParamType::U32];
+
+        let types = vec![ParamType::Struct(vec![
+            ParamType::Enum(inner_enum_types.clone()),
+            ParamType::U32,
+        ])];
+
+        let data = [
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x30, 0x39, 0x0,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xD4, 0x31,
+        ];
+
+        let decoded = ABIDecoder::new().decode(&types, &data).unwrap();
+
+        let expected = vec![Token::Struct(vec![
+            Token::Enum(Box::new((1, Token::U32(12345), inner_enum_types))),
+            Token::U32(54321),
+        ])];
+        assert_eq!(decoded, expected);
     }
 
     #[test]
