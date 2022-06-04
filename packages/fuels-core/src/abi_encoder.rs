@@ -100,7 +100,6 @@ impl Default for ABIEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ParamType;
 
     #[test]
     fn encode_function_signature() {
@@ -566,8 +565,7 @@ mod tests {
             v2: str[10]
         }
          */
-        let deeper_enum_variants = vec![ParamType::Bool, ParamType::String(10)];
-        let deeper_enum_token = Token::String("0123456789".to_owned());
+        let deeper_enum = Token::String("0123456789".to_owned());
 
         /*
         struct StructA {
@@ -576,15 +574,9 @@ mod tests {
         }
          */
 
-        let struct_a_type = ParamType::Struct(vec![
-            ParamType::Enum(deeper_enum_variants.clone()),
-            ParamType::Bool,
-        ]);
-
-        let params = &deeper_enum_variants;
         let encoding_width = 2;
-        let struct_a_token = Token::Struct(vec![
-            Token::Enum(Box::new((1, deeper_enum_token, encoding_width))),
+        let struct_a = Token::Struct(vec![
+            Token::Enum(Box::new((1, deeper_enum, encoding_width))),
             Token::U32(11332),
         ]);
 
@@ -596,10 +588,8 @@ mod tests {
         }
         */
 
-        let top_level_enum_variants = vec![struct_a_type, ParamType::Bool, ParamType::U64];
-        let params = &top_level_enum_variants;
         let encoding_width = 4;
-        let top_level_enum_token = Token::Enum(Box::new((0, struct_a_token, encoding_width)));
+        let top_level_enum_token = Token::Enum(Box::new((0, struct_a, encoding_width)));
 
         let encoded =
             ABIEncoder::new_with_fn_selector("takes_top_level_enum(TopLevelEnum)".as_bytes())

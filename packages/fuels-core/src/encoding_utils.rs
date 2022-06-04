@@ -23,7 +23,7 @@ fn encoding_width(param: &ParamType) -> usize {
         | ParamType::Bool
         | ParamType::Byte => 1,
         ParamType::B256 => 4,
-        ParamType::Array(param, count) => encoding_width(&param) * count,
+        ParamType::Array(param, count) => encoding_width(param) * count,
         ParamType::String(len) => count_words(*len),
         ParamType::Struct(params) => params.iter().map(encoding_width).sum(),
         ParamType::Enum(variants) => {
