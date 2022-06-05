@@ -31,7 +31,7 @@ pub fn expand_type(kind: &ParamType) -> Result<TokenStream, Error> {
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(quote! { (#(#members,)*) })
         }
-        ParamType::Enum(members) => {
+        ParamType::Enum(members, _) => {
             if members.is_empty() {
                 return Err(Error::InvalidData("enum members can not be empty".into()));
             }

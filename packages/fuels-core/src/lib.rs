@@ -46,7 +46,7 @@ pub enum ParamType {
     #[strum(disabled)]
     Struct(Vec<ParamType>),
     #[strum(disabled)]
-    Enum(Vec<ParamType>),
+    Enum(Vec<ParamType>, usize),
     Tuple(Vec<ParamType>),
 }
 
@@ -95,11 +95,11 @@ impl fmt::Display for ParamType {
                 let s = format!("Struct(vec![{}])", inner_strings.join(","));
                 write!(f, "{}", s)
             }
-            ParamType::Enum(inner) => {
+            ParamType::Enum(inner, width) => {
                 let inner_strings: Vec<String> =
                     inner.iter().map(|p| format!("ParamType::{}", p)).collect();
 
-                let s = format!("Enum(vec![{}])", inner_strings.join(","));
+                let s = format!("Enum(vec![{}], {}usize)", inner_strings.join(","), width);
                 write!(f, "{}", s)
             }
             ParamType::Tuple(inner) => {

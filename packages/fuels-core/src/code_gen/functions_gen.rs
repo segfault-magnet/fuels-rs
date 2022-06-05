@@ -288,7 +288,7 @@ fn expand_input_param(
                 ::std::vec::Vec<#ty>
             })
         }
-        ParamType::Enum(_) => {
+        ParamType::Enum(..) => {
             let ident = ident(
                 &extract_custom_type_name_from_abi_property(
                     custom_type_property.expect("Custom type property not found for enum"),
@@ -456,7 +456,7 @@ pub fn hello_world(
         [0, 0, 0, 0, 118, 178, 90, 36],
         &[
             ParamType::Struct(vec![ParamType::Bool, ParamType::U64]),
-            ParamType::Enum(vec![ParamType::Bool , ParamType::U64])] , 
+            ParamType::Enum(vec![ParamType::Bool , ParamType::U64], 1usize)] , 
             &[the_only_allowed_input . into_token () ,]
     )
     .expect("method not found (this should never happen)")
@@ -659,7 +659,11 @@ pub fn hello_world(
             Property {
                 name: "Cocktail".to_string(),
                 type_field: "enum Cocktail".to_string(),
-                components: None,
+                components: Some(vec![Property {
+                    name: "variant".to_string(),
+                    type_field: "U32".to_string(),
+                    components: None,
+                }]),
             },
         );
 
@@ -668,7 +672,16 @@ pub fn hello_world(
         let result = format!("({},{})", args, call_args);
         let expected = r#"(, bim_bam : CarMaker,& [bim_bam . into_token () ,])"#;
         assert_eq!(result, expected);
-        function.inputs[0].type_field = "enum Cocktail".to_string();
+        let property = Property {
+            name: "bim_bam".to_string(),
+            type_field: "enum Cocktail".to_string(),
+            components: Some(vec![Property {
+                name: "variant".to_string(),
+                type_field: "U32".to_string(),
+                components: None,
+            }]),
+        };
+        function.inputs[0] = property;
         let result = expand_function_arguments(&function, &custom_enums, &custom_structs);
         let (args, call_args) = result.unwrap();
         let result = format!("({},{})", args, call_args);
@@ -720,7 +733,7 @@ pub fn hello_world(
         // Notice the removed plural!
         assert_eq!(result.unwrap().to_string(), "Baby");
 
-        let enum_type = ParamType::Enum(vec![ParamType::U8, ParamType::U32]);
+        let enum_type = ParamType::Enum(vec![ParamType::U8, ParamType::U32], 1);
         let enum_prop = Property {
             name: String::from("unused"),
             type_field: String::from("enum babies"),

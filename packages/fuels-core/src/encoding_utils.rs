@@ -26,13 +26,9 @@ fn encoding_width(param: &ParamType) -> usize {
         ParamType::Array(param, count) => encoding_width(param) * count,
         ParamType::String(len) => count_words(*len),
         ParamType::Struct(params) => params.iter().map(encoding_width).sum(),
-        ParamType::Enum(variants) => {
+        ParamType::Enum(_, width) => {
             const DISCRIMINANT_WORD_SIZE: usize = 1;
-
-            // Sway ATM doesn't allow empty Enums hence .unwrap()
-            let widest_width = max_by_encoding_width(variants).unwrap();
-
-            widest_width + DISCRIMINANT_WORD_SIZE
+            *width + DISCRIMINANT_WORD_SIZE
         }
         ParamType::Tuple(params) => params.iter().map(encoding_width).sum(),
     }

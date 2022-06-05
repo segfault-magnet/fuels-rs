@@ -1,4 +1,3 @@
-use crate::encoding_utils::max_by_encoding_width;
 use crate::errors::CodecError;
 use crate::{constants::WORD_SIZE, Bits256, ByteArray, ParamType, Token};
 use core::convert::TryInto;
@@ -172,7 +171,7 @@ impl ABIDecoder {
 
                 Ok(result)
             }
-            ParamType::Enum(variations) => {
+            ParamType::Enum(variations, width) => {
                 let discriminant = peek_word(data, offset).unwrap();
 
                 let discriminant = u32::from_be_bytes(discriminant[4..8].try_into().unwrap());
@@ -185,9 +184,8 @@ impl ABIDecoder {
                     offset + DISCRIMINANT_SIZE,
                 )?;
 
-                let encoding_width = max_by_encoding_width(variations).unwrap();
-                let token = Token::Enum(Box::new((discriminant as u8, res.token, encoding_width)));
-                let enum_byte_size = encoding_width * WORD_SIZE + DISCRIMINANT_SIZE;
+                let token = Token::Enum(Box::new((discriminant as u8, res.token, *width)));
+                let enum_byte_size = width * WORD_SIZE + DISCRIMINANT_SIZE;
                 Ok(DecodeResult {
                     token,
                     new_offset: offset + enum_byte_size,
@@ -409,7 +407,10 @@ mod tests {
         // }
 
         let max_words_for_variant = 1;
-        let types = vec![ParamType::Enum(vec![ParamType::U32, ParamType::Bool])];
+        let types = vec![ParamType::Enum(
+            vec![ParamType::U32, ParamType::Bool],
+            max_words_for_variant,
+        )];
 
         // "0" discriminant and 42 enum value
         let data = [
@@ -447,7 +448,10 @@ mod tests {
         let max_words_for_inner_enum_variant = 4;
 
         let types = vec![ParamType::Struct(vec![
-            ParamType::Enum(vec![ParamType::B256, ParamType::U32]),
+            ParamType::Enum(
+                vec![ParamType::B256, ParamType::U32],
+                max_words_for_inner_enum_variant,
+            ),
             ParamType::U32,
         ])];
 

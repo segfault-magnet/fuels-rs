@@ -221,17 +221,13 @@ impl ABIParser {
             ParamType::Struct(struct_params) => {
                 Ok(self.tokenize_struct(trimmed_value, struct_params)?)
             }
-            ParamType::Enum(s) => {
+            ParamType::Enum(s, width) => {
                 let discriminant = self.get_enum_discriminant_from_string(&value);
                 let value = self.get_enum_value_from_string(&value);
 
                 let token = self.tokenize(&s[discriminant], value)?;
 
-                Ok(Token::Enum(Box::new((
-                    discriminant as u8,
-                    token,
-                    max_by_encoding_width(s).unwrap(),
-                ))))
+                Ok(Token::Enum(Box::new((discriminant as u8, token, *width))))
             }
             ParamType::Tuple(_tuple_params) => {
                 todo!("Tuple tokenization for the ABI CLI tool not implemented yet")
@@ -677,7 +673,10 @@ pub fn parse_custom_type_param(param: &Property) -> Result<ParamType, Error> {
                 return Ok(ParamType::Struct(params));
             }
             if param.is_enum_type() {
-                return Ok(ParamType::Enum(params));
+                let width = max_by_encoding_width(&params).unwrap_or_else(|| {
+                    panic!("Enum '{}' must have at least one variant!", param.name)
+                });
+                return Ok(ParamType::Enum(params, width));
             }
             Err(Error::InvalidType(param.type_field.clone()))
         }
@@ -758,9 +757,9 @@ mod tests {
         };
         let enum_result = parse_custom_type_param(&some_enum).unwrap();
         // Underlying value comparison
-        let expected = ParamType::Enum(vec![ParamType::U64, ParamType::Bool]);
+        let expected = ParamType::Enum(vec![ParamType::U64, ParamType::Bool], 1);
         assert_eq!(enum_result, expected);
-        let expected_string = "Enum(vec![ParamType::U64,ParamType::Bool])";
+        let expected_string = "Enum(vec![ParamType::U64,ParamType::Bool], 1usize)";
         // String format comparison
         assert_eq!(enum_result.to_string(), expected_string);
     }

@@ -62,7 +62,7 @@ pub fn expand_custom_struct(prop: &Property) -> Result<TokenStream, Error> {
                 );
             }
             // The struct contains a nested enum
-            ParamType::Enum(_params) => {
+            ParamType::Enum(_, words) => {
                 let enum_name = ident(
                     &extract_custom_type_name_from_abi_property(component, Some(CustomType::Enum))?
                         .to_class_case(),
@@ -70,7 +70,9 @@ pub fn expand_custom_struct(prop: &Property) -> Result<TokenStream, Error> {
                 fields.push(quote! {pub #field_name: #enum_name});
                 args.push(quote! {#field_name: #enum_name::new_from_tokens(&tokens[#idx..])});
                 struct_fields_tokens.push(quote! { tokens.push(self.#field_name.into_token()) });
-                param_types.push(quote! { types.push(ParamType::Enum(#enum_name::param_types())) });
+                param_types.push(
+                    quote! { types.push(ParamType::Enum(#enum_name::param_types(), #words)) },
+                );
             }
             _ => {
                 let ty = expand_type(&param_type)?;
@@ -194,7 +196,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
         let param_type = parse_param(component)?;
         match param_type {
             // Case where an enum takes another enum
-            ParamType::Enum(_params) => {
+            ParamType::Enum(..) => {
                 // TODO: Support nested enums
                 unimplemented!()
             }
@@ -267,7 +269,8 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
         params.push(param_type);
     }
 
-    let encoding_width = max_by_encoding_width(&params).unwrap();
+    let encoding_width = max_by_encoding_width(&params)
+        .unwrap_or_else(|| panic!("Enum '{}' must have at least one variant!", enum_name));
 
     // Actual creation of the enum, using the inner TokenStreams from above
     // to produce the TokenStream that represents the whole enum + methods
