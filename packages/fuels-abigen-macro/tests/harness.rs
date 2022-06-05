@@ -1468,7 +1468,7 @@ async fn test_logd_receipts() {
         result.logs,
         vec![
             "ffeedd000000000000000000aabb",
-            "ffeedd000000000000000000aabbcc",
+            "ffeedd000000000000000000aabbcc"
         ]
     );
     let result = contract_instance.dont_use_logd().call().await.unwrap();

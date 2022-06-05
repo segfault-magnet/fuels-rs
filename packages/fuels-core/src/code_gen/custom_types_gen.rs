@@ -267,8 +267,7 @@ pub fn expand_custom_enum(name: &str, prop: &Property) -> Result<TokenStream, Er
         params.push(param_type);
     }
 
-    let params_argument = &params;
-    let encoding_width = max_by_encoding_width(params_argument).unwrap();
+    let encoding_width = max_by_encoding_width(&params).unwrap();
 
     // Actual creation of the enum, using the inner TokenStreams from above
     // to produce the TokenStream that represents the whole enum + methods
@@ -469,7 +468,6 @@ mod tests {
         );
         let expected = expected.unwrap().to_string();
         let actual = result.unwrap().to_string();
-        println!("{}", actual);
         assert_eq!(actual, expected);
     }
 

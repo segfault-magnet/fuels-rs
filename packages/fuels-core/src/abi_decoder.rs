@@ -185,10 +185,8 @@ impl ABIDecoder {
                     offset + DISCRIMINANT_SIZE,
                 )?;
 
-                let params = variations;
-                let encoding_width = max_by_encoding_width(params).unwrap();
+                let encoding_width = max_by_encoding_width(variations).unwrap();
                 let token = Token::Enum(Box::new((discriminant as u8, res.token, encoding_width)));
-
                 let enum_byte_size = encoding_width * WORD_SIZE + DISCRIMINANT_SIZE;
                 Ok(DecodeResult {
                     token,
